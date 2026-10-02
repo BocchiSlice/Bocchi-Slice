@@ -1,0 +1,9 @@
+BOCCHI/SLICE
+Developed by Haruki Fukuda
+Copyright 2026 Haruki Fukuda
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product bundles third-party software (OpenJPEG, CharLS, cornerstone codecs,
+Emscripten runtime, fzstd) and fonts (IBM Plex Sans JP, IBM Plex Mono) under their
+own licenses; see THIRD_PARTY_NOTICES.md.

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="512" height="512">
+<defs><path id="pk" d="M24 45.2 C21.2 42.6 8.6 28.6 5.6 16.2 C4.3 10.6 6.9 6.8 12.2 5.7 C16.2 4.9 20 4.6 24 4.6 C28 4.6 31.8 4.9 35.8 5.7 C41.1 6.8 43.7 10.6 42.4 16.2 C39.4 28.6 26.8 42.6 24 45.2Z" transform="rotate(-10 24 25)"/><clipPath id="pkC"><use href="#pk"/></clipPath>
+<mask id="pkM" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><rect width="48" height="48" fill="#fff"/><g fill="#000"><rect y="11" width="48" height="2"/><rect y="17.4" width="48" height="11"/><rect y="32.8" width="48" height="2"/></g></mask>
+<radialGradient id="bg" cx=".3" cy=".2" r="1"><stop offset="0" stop-color="#25262c"/><stop offset="1" stop-color="#121317"/></radialGradient></defs>
+<rect width="48" height="48" fill="url(#bg)"/>
+<g transform="translate(5.279999999999999 5.747999999999999) scale(0.78)"><use href="#pk" fill="#ece5d8" mask="url(#pkM)"/><g transform="translate(4.2 0)"><rect fill="#ea5a2b" x="0" y="19.4" width="48" height="7" clip-path="url(#pkC)"/></g></g>
+</svg>
