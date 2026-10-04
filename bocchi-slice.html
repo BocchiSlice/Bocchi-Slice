@@ -1332,6 +1332,8 @@
   :root[data-mobile="1"] .home .home-hero { right: -12%; top: 0; bottom: auto; height: 46vh; width: 72%; opacity: .45; -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent); mask-image: linear-gradient(180deg, #000 40%, transparent); }
   @container (max-width: 1000px) { .start-overlay.home .start-card { max-width: 560px !important; } }
   :root[data-mobile="1"] .start-overlay.home .start-card { width: 100% !important; max-width: none !important; padding: 18px 18px 28px !important; }
+  /* スマホの起動画面も、選んだデザインの色に（3Dの暗い背景の上に出さない） */
+  :root[data-mobile="1"] .start-overlay.home { background: var(--bg); }
   :root[data-mobile="1"] .home .si-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   :root[data-mobile="1"] .home .home-q { font-size: 28px; }
   /* スマホのホーム：スクロールせずに1画面に収める（縦向き） */
@@ -2691,6 +2693,16 @@
   :root:is([data-theme="sakura"], [data-theme="soda"], [data-theme="yozora"]) :is(.btn, .mode-b, .side-data, .side-next, .layer, .scene) { box-shadow: 0 10px 24px -18px rgba(20,10,30,.45); }
   :root:is([data-theme="sakura"], [data-theme="soda"]) .btn { background: #ffffff; color: #2c2430; }
   :root:is([data-theme="sakura"], [data-theme="soda"]) .stage .start-card :is(.btn, .mode-b) { background: var(--panel-2); color: var(--text); }
+  /* スマホの起動画面は画像を見る所（.stage）の中にあるので、明るいテーマでは、そこだけテーマの色に戻す（パソコンは別の窓で出している） */
+  :root[data-mobile="1"][data-theme="light"] .stage .start-overlay.home { color-scheme: light; color: #172127;
+    --bg: #e9eef1; --panel: #ffffff; --panel-2: #f1f5f7; --line: #d3dce1; --line-2: #bcc8cf; --text: #172127; --muted: #4d5d65; --faint: #6f7e85; --accent: #16809b; --accent-ink: #ffffff; --thr: #b06f12; }
+  :root[data-mobile="1"][data-theme="pop"] .stage .start-overlay.home { color-scheme: light; color: #1d1a24;
+    --bg: #fff3d9; --panel: #fffaf0; --panel-2: #fff1cf; --line: #1d1a24; --line-2: #1d1a24; --text: #1d1a24; --muted: #4a4357; --faint: #6d6479; --accent: #ff3d7f; --accent-ink: #ffffff; --thr: #ffcf2e; }
+  :root[data-mobile="1"][data-theme="sakura"] .stage .start-overlay.home { color-scheme: light; color: #3a2730;
+    --bg: #fbeef2; --panel: #ffffff; --panel-2: #fde9ef; --line: #f0cfdb; --line-2: #e4b4c6; --text: #3a2730; --muted: #7a5f6b; --faint: #a08b95; --accent: #e85d8c; --accent-ink: #ffffff; --thr: #f2a93b; }
+  :root[data-mobile="1"]:is([data-theme="light"], [data-theme="pop"], [data-theme="sakura"], [data-theme="soda"]) .home .start-samples { background-blend-mode: difference, normal; }   /* 白い線画を、明るい地の上では濃い線に */
+  :root[data-mobile="1"][data-theme="soda"] .stage .start-overlay.home { color-scheme: light; color: #0f333d;
+    --bg: #eaf7fa; --panel: #ffffff; --panel-2: #e2f3f7; --line: #c3e4ec; --line-2: #9fd1dd; --text: #0f333d; --muted: #4d6f78; --faint: #7f9ba3; --accent: #ff7a59; --accent-ink: #ffffff; --thr: #1fb3c9; }
   :root:is([data-theme="sakura"], [data-theme="soda"], [data-theme="yozora"]) .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 10px 22px -10px var(--accent); }
   :root:is([data-theme="sakura"], [data-theme="soda"], [data-theme="yozora"]) .btn:hover { border-color: var(--accent); transform: translateY(-1px); }
   :root:is([data-theme="sakura"], [data-theme="soda"], [data-theme="yozora"]) .mode-b[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); }
