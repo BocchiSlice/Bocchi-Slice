@@ -27842,7 +27842,10 @@ function frameBetween(A, B, e, opt) {
   if (typeof VA.ww === 'number' && typeof VB.ww === 'number') { viewF.ww = Math.round(lerp(VA.ww, VB.ww, e)); viewF.wl = Math.round(lerp(VA.wl, VB.wl, e)); }
   if ('capCT' in VA || 'capCT' in VB) {
     const qa = VA.capCT ? (VA.capCTA ?? 1) : 0, qb = VB.capCT ? (VB.capCTA ?? 1) : 0;
-    viewF.capCT = !!(VA.capCT || VB.capCT); viewF.capCTA = lerp(qa, qb, e);
+    // 途中は不透明度で出し入れ。着いたら（e=1）そのショットの値そのものに（オフのショットで「オン・不透明度0」が残ると、あとでオンにしても見えない）
+    if (e >= 1) { viewF.capCT = !!VB.capCT; viewF.capCTA = VB.capCTA ?? 1; }
+    else if (e <= 0) { viewF.capCT = !!VA.capCT; viewF.capCTA = VA.capCTA ?? 1; }
+    else { viewF.capCT = !!(VA.capCT || VB.capCT); viewF.capCTA = lerp(qa, qb, e); }
   }
   // 描き方（通常・イラスト・スミ風）がショットで違うときは、できた絵に混ぜて少しずつ移り変わらせる
   {
@@ -27915,7 +27918,8 @@ function animApply(fs) {
   layers = fs.layers;
   const ww0 = view.ww, wl0 = view.wl;
   if (fs.view) for (const k in fs.view) if (fs.view[k] !== undefined && fs.view[k] !== null) view[k] = fs.view[k];
-  if (view.ww !== ww0 || view.wl !== wl0) dirty2d = true;   // 濃淡が変わったら2D画像も
+  if (view.ww !== ww0 || view.wl !== wl0) dirty2d = true;
+  if (fs.view && 'capCT' in fs.view && $('capCT').checked !== !!view.capCT && typeof capCTUI === 'function') capCTUI();   // チェックの表示を今の状態に合わせる（ずれると、押しても逆に切り替わる）   // 濃淡が変わったら2D画像も
   if (fs.vr) Object.assign(vr, fs.vr);
   if (fs.bgImg) bgApplyState(fs.bgImg, true);
   if (fs.annots) annot.list = fs.annots;
@@ -33392,7 +33396,9 @@ function capCTUI() {
   const a = Math.round((view.capCTA ?? 1) * 100); $('capCTA').value = a; $('capCTAOut').textContent = a + '%';
 }
 $('capCT').addEventListener('change', (e) => {
-  view.capCT = e.target.checked; capCTUI(); requestDraw(false);
+  view.capCT = e.target.checked;
+  if (view.capCT && !((view.capCTA ?? 1) > 0.05)) view.capCTA = 1;   // 不透明度0のままオンにしても見えないので、見える濃さに戻す
+  capCTUI(); requestDraw(false);
   if (view.capCT && !view.vc && view.clip.every((v, k) => Math.abs(v - (k % 2)) < 1e-3)) histToast('切り口は、手前カットか切断で切ったときに見えます');
 });
 $('capFill').addEventListener('change', (e) => { view.capFill = e.target.value; view.capHollow = view.capFill !== 'air'; requestDraw(false); });
