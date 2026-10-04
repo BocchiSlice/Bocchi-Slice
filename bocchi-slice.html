@@ -338,7 +338,7 @@
   @keyframes fadeIn { from { opacity: 0; } }
   /* 下の端：ホームバーの帯は、ボタンの文字が重ならない分だけあける（全部あけると空白が大きすぎた） */
   :root[data-mobile="1"] { --m-sab: max(0px, calc(env(safe-area-inset-bottom, 0px) - 12px)); background: var(--panel); }
-  :root[data-mobile="1"] .mnav:not([hidden]) { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; height: calc(var(--mnav-h) + var(--m-sab)); padding: 0 4px var(--m-sab);
+  :root[data-mobile="1"] .mnav:not([hidden]) { display: flex; position: fixed; left: 0; right: 0; bottom: calc(-1 * var(--m-gap, 0px)); z-index: 70; height: calc(var(--mnav-h) + var(--m-sab) + var(--m-gap, 0px)); padding: 0 4px calc(var(--m-sab) + var(--m-gap, 0px));
     background: var(--panel); border-top: 1px solid var(--line-2); align-items: stretch; justify-content: space-around; }
   :root[data-mobile="1"] .mnav > button, :root[data-mobile="1"] .mnav #setMenu > summary { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0;
     background: none; border: 0; color: var(--muted); font: 500 10.5px var(--sans); padding: 6px 2px; height: 100%; border-radius: 0; }
@@ -480,14 +480,26 @@
   :root:not([data-mobile="1"]) .mtask .mt-h > .mt-q { margin-left: auto; }
   :root:not([data-mobile="1"]) .mtask .mt-h > #mTaskHelp[hidden] + #mTaskMore { margin-left: auto; }
   :root:not([data-mobile="1"]) .mtask .mt-h .mt-info { order: 0; flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  :root[data-mobile="1"] .mtask:not([hidden]) { display: grid; gap: 6px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; padding: 8px 10px calc(6px + var(--m-sab, 0px)); box-sizing: border-box;
+  :root[data-mobile="1"] .mtask:not([hidden]) { display: grid; gap: 6px; position: fixed; left: 0; right: 0; bottom: calc(-1 * var(--m-gap, 0px)); z-index: 70; padding: 8px 10px calc(6px + var(--m-sab, 0px) + var(--m-gap, 0px)); box-sizing: border-box;
     background: var(--panel); border-top: 1px solid var(--line-2); box-shadow: 0 -8px 24px rgba(0,0,0,.35); }
   :root[data-mobile="1"][data-mtask] .mnav { display: none !important; }
   /* 作業のバーと同じボタンは、ほかの場所では出さない（ショットの帯の見出しのボタン、3Dのハサミの表示） */
   :root[data-mobile="1"][data-mtask]:not([data-mtask="shot"]) #shotStrip { display: none !important; }   /* スマホ：ほかの作業中はショットの帯で画像を狭めない */
   :root[data-mobile="1"][data-mtask="shot"] #shotStrip .ss-h, :root[data-mobile="1"][data-mtask] #scissorChip { display: none !important; }
   :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask:not([hidden]) { padding-left: calc(10px + env(safe-area-inset-left, 0px)); padding-right: calc(10px + env(safe-area-inset-right, 0px)); }
-  :root[data-mobile="1"][data-mlay="1"][data-mtask][data-mland="1"] .app { left: 0; bottom: var(--m-nav-h); }
+  /* スマホ横向き：作業のバーは右の縦長の列に（下に出すと画像が細い帯になってしまう） */
+  :root[data-mland="1"] { --m-task-w: calc(min(380px, 44vw) + env(safe-area-inset-right, 0px)); }
+  :root[data-mobile="1"][data-mlay="1"][data-mtask][data-mland="1"] .app { left: 0; right: var(--m-task-w); top: 0; bottom: 0; }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask:not([hidden]) { left: auto !important; right: 0; top: 0; bottom: 0 !important; width: var(--m-task-w); max-width: none; max-height: none !important; height: auto;
+    align-content: start; padding: calc(10px + env(safe-area-inset-top, 0px)) calc(10px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) 12px !important;
+    border-top: 0; border-left: 1px solid var(--line-2); box-shadow: -8px 0 24px rgba(0,0,0,.3); overflow-y: auto; }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask:not([hidden]) { display: flex !important; flex-direction: column; gap: 8px; }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask:not([hidden]) > * { flex: none; }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask .mt-grip, :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask #mTaskRs { display: none; }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask .mt-row { flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .mtask .mt-h { flex-wrap: wrap; }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .help-fab { right: calc(var(--m-task-w) + 10px); }
+  :root[data-mobile="1"][data-mtask][data-mland="1"] .m-state-chips:not(:empty) { left: 10px; right: calc(var(--m-task-w) + 10px); top: calc(env(safe-area-inset-top, 0px) + 52px); }
   :root[data-mobile="1"][data-mtask] .m-state-chips:not(:empty) { left: 10px; top: calc(env(safe-area-inset-top, 0px) + 92px); }
   :root[data-mobile="1"] .mtask:not([hidden]) { grid-template-columns: minmax(0, 1fr); width: 100%; max-width: 100vw; }
   .mtask > * { min-width: 0; max-width: 100%; }
@@ -30833,7 +30845,7 @@ function mTaskTick(force) {
   { const v = $('mTaskView'), l = $('mnavViewLbl'); if (v) { v.hidden = want === 'slice'; if (l) $('mTaskViewLbl').textContent = l.textContent; } }   // 断面の作業はバーの中に画面の切り替えがある
   mTaskPlace();
   requestAnimationFrame(() => {
-    const h0 = root.style.getPropertyValue('--m-task-h'), h1 = box.offsetHeight + 'px';
+    const h0 = root.style.getPropertyValue('--m-task-h'), h1 = (root.dataset.mobile === '1' && root.dataset.mland === '1' ? 0 : Math.max(0, box.offsetHeight - mGapPx())) + 'px';   // 横向きは右の列なので、下は空けない
     root.style.setProperty('--m-task-h', h1);
     // バーの行数が変わったら、画像の領域もその分だけ合わせる（帯や画像が下に隠れないように）
     if (root.dataset.mobile === '1' && root.dataset.mlay === '1' && !box.hidden) root.style.setProperty('--m-nav-h', h1);
@@ -30923,7 +30935,7 @@ function mTaskPlace() {
 { // つまみ：パソコンはドラッグで移動（見出しをつかんでも可）、右下の角で幅。スマホは上下で高さ、タップで小さく⇄元に
   const box = $('mTask'), grip = $('mTaskGrip'), rs = $('mTaskRs');
   const mob = () => document.documentElement.dataset.mobile === '1';
-  const afterH = () => { const root = document.documentElement, h = box.offsetHeight + 'px'; root.style.setProperty('--m-task-h', h); if (root.dataset.mlay === '1') root.style.setProperty('--m-nav-h', h); window.dispatchEvent(new Event('resize')); };
+  const afterH = () => { const root = document.documentElement, h = (root.dataset.mobile === '1' && root.dataset.mland === '1' ? 0 : Math.max(0, box.offsetHeight - mGapPx())) + 'px'; root.style.setProperty('--m-task-h', h); if (root.dataset.mlay === '1') root.style.setProperty('--m-nav-h', h); window.dispatchEvent(new Event('resize')); };
   let d = null;
   const down = (e, kind) => {
     if (e.button > 0) return;
@@ -31260,6 +31272,25 @@ function cmdRank(items, q) {
   el.addEventListener('focus', go);
 });
 // スマホ：キーボードが出たぶん、画面の見える高さに合わせる
+// ホーム画面のアプリ（iPhone）で、画面の高さより表示の高さが短くなり、下に何もない帯が残ることがある（iOS の不具合）。
+// その分だけ、下のバー（ナビ・作業のバー）を画面の下端まで伸ばす
+var mGapV = 0;
+function mGapPx() { return mGapV; }
+function mGapFix() {
+  let g = 0;
+  try {
+    const sa = (matchMedia('(display-mode: standalone)').matches || navigator.standalone) && /iP(hone|ad|od)|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 0;
+    // 上の時計の帯の下までページが描かれているとき（上の余白がある）だけ。帯の下から始まる表示では、下にずらすと切れてしまう
+    let sat = 0; if (sa) { const p = document.createElement('div'); p.style.cssText = 'position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top,0px)'; document.body.appendChild(p); sat = parseFloat(getComputedStyle(p).paddingTop) || 0; p.remove(); }
+    if (sa && sat > 0 && screen && screen.width && screen.height) {
+      const land = innerWidth > innerHeight, sh = land ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+      const d = Math.round(sh - innerHeight);
+      if (d >= 8 && d <= 120 && Math.abs((land ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - innerWidth) < 4) g = d;
+    }
+  } catch (e) { g = 0; }
+  if (g !== mGapV) { mGapV = g; const r = document.documentElement; if (g) r.style.setProperty('--m-gap', g + 'px'); else r.style.removeProperty('--m-gap'); try { if (typeof mTaskTick === 'function') mTaskTick(true); } catch (e) {} }
+}
+mGapFix(); addEventListener('resize', () => setTimeout(mGapFix, 60)); addEventListener('orientationchange', () => setTimeout(mGapFix, 300));
 if (window.visualViewport) { const f = () => document.documentElement.style.setProperty('--vvh', Math.round(window.visualViewport.height) + 'px'); window.visualViewport.addEventListener('resize', f); f(); }
 function cmdOpen(q0) {
   if (document.querySelector('.cmdk')) return;
@@ -35649,6 +35680,8 @@ requestAnimationFrame(loop);
       root.style.setProperty('--m-side-w', Math.round(Math.min(440, Math.max(300, w * 0.44))) + 'px');
     }
     root.dataset.mlay = '1';
+    // 作業のバーが出ているとき：向きを変えたら、画像の下の空きをバーに合わせ直す（横向きは右の列なので0）
+    { const bx = $('mTask'); if (bx && !bx.hidden) requestAnimationFrame(() => { const hh = land ? 0 : Math.max(0, bx.offsetHeight - (typeof mGapPx === 'function' ? mGapPx() : 0)); root.style.setProperty('--m-task-h', hh + 'px'); if (!land) root.style.setProperty('--m-nav-h', hh + 'px'); window.dispatchEvent(new Event('resize')); }); }
     if (window.scrollY || document.body.scrollTop) { window.scrollTo(0, 0); document.body.scrollTop = 0; }
   }
   const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
