@@ -27062,6 +27062,9 @@ function setEndo(on, look) {
     endoMsg(inWall ? 'カメラが壁の中にあります。2D画像で、内腔（' + ENDO_KIND[endo.kind].name + '）の中をクリックして置いてください。' : '');
   } else {
     setEndoAuto(false);
+    // 入る前の画面の並び（3Dだけ・1画面に大きく など）に戻す。内視鏡のために4画面にしたままだと、3Dが小さくて回しにくい
+    const P = endo.prevLayout; endo.prevLayout = null; endo.drag = null;
+    if (P && (view.layout !== P.layout || view.max !== P.max)) { view.layout = P.layout; view.max = P.max; applyLayout(); }
     requestDraw(false);
   }
   drawOverlay3D();
@@ -29903,6 +29906,8 @@ function mSegStep(n) {
   mTaskTick(true);
 }
 // 3Dモデルの作業でハサミの対象を「3Dモデルだけ」にしたのを、終えたら元に戻す
+// 内視鏡・FPSの作業を終えたら：入る前の3Dの視点（回す中心・距離）に戻す。FPSの後は回す中心が中の1点になっていて、回しにくいため
+function endoCamRestore() { const c0 = mTask.endoCam0; mTask.endoCam0 = null; if (!c0) return; Object.assign(cam, { yaw: c0.yaw, pitch: c0.pitch, dist: c0.dist, target: c0.target.slice() }); requestDraw(false); try { drawOverlay3D(); } catch (e) {} }
 function mdlTgtRestore() { const t = $('scissorTgt'); if (mTask.mdlTgt0 != null && t) { if (scissor.on) setScissor(false); t.value = mTask.mdlTgt0; t.dispatchEvent(new Event('change', { bubbles: true })); } mTask.mdlTgt0 = null; }
 async function mTaskStart(k, opts = {}) {   // ツールのシート・左の列の「やりたいこと」から
   mTask.returnTo = opts.returnTo || (k === 'shot' ? '' : mTask.returnTo && mTask.cur === k ? mTask.returnTo : '');
@@ -29915,7 +29920,7 @@ async function mTaskStart(k, opts = {}) {   // ツールのシート・左の列
   if (k !== 'note' && annot.on) setAnnotMode(false);   // 注釈を置くのは、注釈の作業の間だけ
   if (mTask.cur === 'mdl' && k !== 'mdl') mdlTgtRestore();
   if (mTask.cur === 'mdl' && k !== 'mdl' && mTask.mdlHide0 != null) { view.ctHide = mTask.mdlHide0; $('ctHide').checked = view.ctHide; mTask.mdlHide0 = null; requestDraw(false); }
-  if (mTask.cur === 'endo' && k !== 'endo' && k !== 'shot') { if (fps.on) setFps(false); if (endo.on) setEndo(false); }   // 中に入ったまま別の作業へ行かない（ショットは中の見え方を残せるように、そのまま）
+  if (mTask.cur === 'endo' && k !== 'endo' && k !== 'shot') { if (fps.on) setFps(false); if (endo.on) setEndo(false); endoCamRestore(); }   // 中に入ったまま別の作業へ行かない（ショットは中の見え方を残せるように、そのまま）
   mTask.stick = k; mTask.explicit = true;
   // スマホの4画面は小さくて指で操作しにくいので、作業に合った1画面にする
   if (document.documentElement.dataset.mobile === '1' && (view.layout === 'quad' || view.layout === 'mpr') && k !== 'seg') mLayout(k === 'meas' || k === 'slice' ? '2d' : '3d', k === 'meas' || k === 'slice' ? (view.plane2d || 0) : undefined);
@@ -29931,6 +29936,7 @@ async function mTaskStart(k, opts = {}) {   // ツールのシート・左の列
     renderSegs(); mSegStep(0);
   }
   else if (k === 'cut') { if (!scissor.on) setScissor(true); }
+  else if (k === 'endo' && mTask.cur !== 'endo') mTask.endoCam0 = { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, target: cam.target.slice() };   // 終えたら、入る前の視点に戻す
   else if (k === 'meas') { if (meas.tool === 'none') setTool('dist'); }
   else if (k === 'shot') { if (typeof ssRender === 'function') ssRender(); }
   else if (k === 'out') mTask.outSel = '';
@@ -30166,7 +30172,7 @@ function mTaskEnd() {
   else if (k === 'part') { try { ghostApply(false); } catch (er) {} { const t = $('scissorTgt'); if (mTask.partTgt0 != null && t) { t.value = mTask.partTgt0; t.dispatchEvent(new Event('change', { bubbles: true })); } mTask.partTgt0 = null; } try { stateCut.quiet = `${volume.cutCount || 0}:${(volume.lcuts || []).map((c) => c.count || 0).join(',')}:${volume.table && volume.table.on ? 1 : 0}`; } catch (er) {} if (scissor.on) setScissor(false); if (piece.on) setPiece(false); if (modelMove.on) setModelMove(false); if (ctMove.on) setCtMove(false); if (typeof reg3d !== 'undefined' && reg3d.on) setReg3d(false); if (reg.on) setReg(false); partRestore(); }
   else if (k === 'cmp') { if (reg.on) setReg(false); }
   else if (k === 'diff') { if (reg3.pick) regSetPick(false); }
-  else if (k === 'endo') { if (fps.on) setFps(false); if (endo.on) setEndo(false); }
+  else if (k === 'endo') { if (fps.on) setFps(false); if (endo.on) setEndo(false); endoCamRestore(); }
   mTask.stick = ''; mTask.explicit = false;
   if (typeof ssRender === 'function') ssRender();
   mTaskTick(true);
