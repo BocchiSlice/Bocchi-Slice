@@ -7973,7 +7973,8 @@ const IS_QUEST = /OculusBrowser|Quest/i.test(navigator.userAgent || '');
 const PERF = { mode: (() => { try { return localStorage.getItem('bs.perf') || 'auto'; } catch (_) { return 'auto'; } })(), t: 0, ema: 0, n: 0, base: null };
 function perfApply() {
   PERF.lite = PERF.mode === 'lite' || (PERF.mode === 'auto' && IS_QUEST);
-  PERF.hiMP = PERF.lite ? 0.9e6 : 3.2e6; PERF.lo0 = PERF.lite ? 0.3 : 0.5; PERF.lo = PERF.lo0; PERF.loMin = PERF.lite ? 0.16 : 0.18;
+  PERF.hiMP = PERF.lite ? 0.6e6 : 3.2e6; PERF.lo0 = PERF.lite ? 0.25 : 0.5; PERF.lo = PERF.lo0; PERF.loMin = PERF.lite ? 0.12 : 0.18;
+  PERF.last = 0; PERF.last2d = 0;
 }
 perfApply();
 function dprCap() { return Math.min(window.devicePixelRatio || 1, PERF.lite ? 1 : 2); }
@@ -8310,14 +8311,15 @@ function draw(hq, ov) {
     gl.uniform1i(P.u('uGlowPass'), 0);
     gl.activeTexture(gl.TEXTURE0);
   } : null;
-  drawGlow(tgt, camInfo, rayGlow);
+  const liteI = PERF.lite && !hq && !ov;   // 軽く描く・動かしている間：発光・描き方（イラストなど）は止まってから
+  if (!liteI) drawGlow(tgt, camInfo, rayGlow);
   gl.disable(gl.DEPTH_TEST);
   gl.depthMask(true);
   if (!inEndo) {
     // ショットの再生中は、描き方をふわっと移り変わらせる（view.styleT：0〜1、それ以外は -1）
     const fx = view.styleT >= 0 && view.styleT <= 1;
     const sA = fx ? view.styleA | 0 : view.style || 0, sB = fx ? view.styleB | 0 : sA, t = fx ? view.styleT : 0;
-    if (sA > 0 || sB > 0) stylePass(tgt, sA, sB, t);
+    if ((sA > 0 || sB > 0) && !liteI) stylePass(tgt, sA, sB, t);
   }
 
   // 描いた絵を出す先：ふだんは画面、VRではその目の場所
@@ -8328,7 +8330,7 @@ function draw(hq, ov) {
     // 操作中の粗い絵から止めたときの細かい絵へは、少しずつ切り替える
     const now = performance.now();
     if (tgt === loT) { lastLQ = now; fade = null; perfTick(); }
-    else if (hq && now - lastLQ < 500) fade = { t0: now, dur: 220 };
+    else if (hq && now - lastLQ < 500 && !PERF.lite) fade = { t0: now, dur: 220 };   // 軽く描くときは重ねて切り替えない
     else fade = null;
     // 比較・ショットのプレビューがあるときは、ふわっと切り替えない（切り替えの途中で上書きされるため）
     if ((typeof cmp !== 'undefined' && cmp.on) || (typeof shotCam !== 'undefined' && shotCam.on)) fade = null;
@@ -8434,16 +8436,19 @@ function loop(now) {
     blitTo(loT, 1); blitTo(hiT, k * k * (3 - 2 * k));
     if (k >= 1) fade = null;
   } else if (fade && dirty) fade = null;
-  if (dirty) {
-    const interactive = now - lastInteract < 180;
+  const interactive = now - lastInteract < 180;
+  // 軽く描くとき：動かしている間は 3D を 1秒に約30回まで、2D の断面は約8回まで（GPU を詰まらせて画面全体がちらつくのを防ぐ）
+  const hold3d = PERF.lite && interactive && now - PERF.last < 31;
+  const hold2d = PERF.lite && interactive && now - PERF.last2d < 120;
+  if (dirty && !hold3d) {
     draw(!interactive);
-    dirty = false;
+    dirty = false; PERF.last = now;
     needHQ = interactive;
-  } else if (needHQ && now - lastInteract > 180) {
+  } else if (!dirty && needHQ && now - lastInteract > 180) {
     draw(true);
     needHQ = false;
   }
-  if (dirty2d) { dirty2d = false; panes2d.forEach((q) => renderPane(q)); if (typeof cprLater === 'function' && !cprWin.hidden) cprLater(); }
+  if (dirty2d && !hold2d) { dirty2d = false; PERF.last2d = now; panes2d.forEach((q) => renderPane(q)); if (typeof cprLater === 'function' && !cprWin.hidden) cprLater(); }
   requestAnimationFrame(loop);
 }
 
