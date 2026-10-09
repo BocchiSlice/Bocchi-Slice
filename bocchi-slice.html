@@ -5506,6 +5506,14 @@ const FS_RAY = `#version 300 es
 #define MAXL 10   // 一度に描けるサーフェスの数
 precision highp float;
 precision highp sampler3D;
+// 乱数：sin を使わない（大きな値の sin は、Quest などスマホ向けGPUで精度が落ち、斜めの線の模様になる）
+#ifdef SAFE_HASH
+float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float h13(vec3 p){ vec3 q = fract(p * 0.1031); q += dot(q, q.zyx + 31.32); return fract((q.x + q.y) * q.z); }
+#else
+float h12(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float h13(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+#endif
 uniform sampler3D uVol;
 uniform sampler3D uBrick;
 uniform sampler3D uVol2;    // 2つ目のCT（1つ目の格子に合わせて作り直したもの）
@@ -5788,10 +5796,10 @@ vec4 shade(int li, vec3 hp, vec3 n, bool cut, vec3 rd){
   if (cine) {   // 表面の細かなざらつき（体の中の位置で決まるので、回しても模様は動かない）
     vec3 gp = hp * uVDim * 0.9, gi = floor(gp), gf = fract(gp); gf = gf * gf * (3.0 - 2.0 * gf);
     const vec3 HK = vec3(127.1, 311.7, 74.7);
-    float h000 = fract(sin(dot(gi, HK)) * 43758.5453), h100 = fract(sin(dot(gi + vec3(1, 0, 0), HK)) * 43758.5453);
-    float h010 = fract(sin(dot(gi + vec3(0, 1, 0), HK)) * 43758.5453), h110 = fract(sin(dot(gi + vec3(1, 1, 0), HK)) * 43758.5453);
-    float h001 = fract(sin(dot(gi + vec3(0, 0, 1), HK)) * 43758.5453), h101 = fract(sin(dot(gi + vec3(1, 0, 1), HK)) * 43758.5453);
-    float h011 = fract(sin(dot(gi + vec3(0, 1, 1), HK)) * 43758.5453), h111 = fract(sin(dot(gi + vec3(1, 1, 1), HK)) * 43758.5453);
+    float h000 = h13(gi), h100 = h13(gi + vec3(1, 0, 0));
+    float h010 = h13(gi + vec3(0, 1, 0)), h110 = h13(gi + vec3(1, 1, 0));
+    float h001 = h13(gi + vec3(0, 0, 1)), h101 = h13(gi + vec3(1, 0, 1));
+    float h011 = h13(gi + vec3(0, 1, 1)), h111 = h13(gi + vec3(1, 1, 1));
     float gn = mix(mix(mix(h000, h100, gf.x), mix(h010, h110, gf.x), gf.y), mix(mix(h001, h101, gf.x), mix(h011, h111, gf.x), gf.y), gf.z);
     alb *= 1.0 + (0.14 * gn - 0.07) * boneW;
   }
@@ -5868,7 +5876,7 @@ vec4 vrRender(vec3 o, vec3 d, vec3 rd, float tN, float tF, float fz, out float t
   }
   if (tF <= tN) return vec4(0.0);
   float stepT = uVox * (uHQ == 1 ? 0.5 : 0.85) * max(uStepK, 1.0);
-  float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  float jit = h12(gl_FragCoord.xy);
   float lo = uVRWin.x, hi = uVRWin.y, iw = 1.0 / max(hi - lo, 1e-4);
   float mx = -10.0, mn = 10.0, sum = 0.0, cnt = 0.0, att = 0.0;
   vec4 acc = vec4(0.0);
@@ -6030,7 +6038,7 @@ void main(){
     bool entry = prev != 0 && acc.a < 0.985;
 
     float stepT = uVox * (uHQ == 1 ? 0.55 : 0.9) * max(uStepK, 1.0);
-    float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+    float jit = h12(gl_FragCoord.xy);
     float t = tN + stepT * jit;
     float tPrev = tN;
     vec3 vd = safeDiv(d * uVDim);
@@ -6225,9 +6233,12 @@ const RAY_LEVELS = ['', '#define RAY_LITE\n', '#define RAY_LITE\n#define RAY_NOV
 //   ?ray=1 影・遮蔽なしの小さい描き方 / ?ray=2 さらにボリュームレンダリングなし / ?vol8=1 CTを8ビットでGPUに送る
 const TEST = (() => { let q = null; try { q = new URLSearchParams(location.search); } catch (_) { /* */ }
   const ray = q && /^[0-2]$/.test(q.get('ray') || '') ? +q.get('ray') : null, vol8 = !!(q && q.get('vol8') === '1');
-  return { ray, vol8, on: ray !== null || vol8, t: {} }; })();
+  const hq = q ? q.get('hash') : null;
+  // Quest・Android：sin を使わない乱数で描く（斜めの細い白い線が出るのを防ぐ）。?hash=1 / ?hash=0 で切り替えて比べられる
+  const safe = hq === '1' ? true : hq === '0' ? false : /OculusBrowser|Quest|Android/i.test(navigator.userAgent || '');
+  return { ray, vol8, safe, on: ray !== null || vol8 || hq !== null, t: {} }; })();
 let rayLevel = TEST.ray || 0, rayChecks = 8;
-const raySrc = (lv) => FS_RAY.replace('#define MAXL 10', (TEST.vol8 ? '#define VOL8\n' : '') + RAY_LEVELS[lv] + '#define MAXL 10');
+const raySrc = (lv) => FS_RAY.replace('#define MAXL 10', (TEST.safe ? '#define SAFE_HASH\n' : '') + (TEST.vol8 ? '#define VOL8\n' : '') + RAY_LEVELS[lv] + '#define MAXL 10');
 
 function rayFallback() {
   if (rayLevel >= RAY_LEVELS.length - 1) {
@@ -6244,7 +6255,7 @@ function rayFallback() {
   requestDraw(false);
 }
 try {
-  rayProg = programLazy(VS, TEST.on ? raySrc(rayLevel) : FS_RAY);
+  rayProg = programLazy(VS, raySrc(rayLevel));
   blitProg = program(VS, FS_BLIT);
 } catch (e) {
   showMsg('シェーダーの初期化に失敗しました: ' + e.message);
@@ -7105,7 +7116,7 @@ function testBadge() {
   let el = document.getElementById('testBadge');
   if (!el) { el = document.createElement('div'); el.id = 'testBadge'; el.className = 'perf-meter'; el.style.top = 'auto'; el.style.bottom = '8px'; document.body.appendChild(el); }
   const s = (ms) => (ms == null ? '—' : (ms / 1000).toFixed(1) + 's');
-  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
+  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
 }
 setTimeout(testBadge, 500);
 async function setSmooth(level) {
