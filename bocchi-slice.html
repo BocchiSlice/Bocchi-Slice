@@ -5502,6 +5502,26 @@ void main(){
   o = vec4(uMix <= 0.0 ? outc[0] : mix(outc[0], outc[1], uMix), 1.0);
 }`;
 
+// 試験用（?probe=）：CTの3Dテクスチャを読むだけの簡単な絵。3Dテクスチャを読むこと自体でちらつくかを確かめる
+const FS_PROBE = `#version 300 es
+precision highp float;
+precision highp sampler3D;
+uniform sampler3D uVol;
+uniform int uN;
+in vec2 vUv; out vec4 o;
+void main(){
+  float m = -2000.0;
+  if (uN <= 1) m = texture(uVol, vec3(vUv, 0.5)).r;
+  else for (int i = 0; i < 128; i++) m = max(m, texture(uVol, vec3(vUv, (float(i) + 0.5) / 128.0)).r);
+  #ifdef VOL8
+  float g = m;
+  #else
+  float g = m > 2.0 ? clamp((m + 200.0) / 1200.0, 0.0, 1.0) : clamp(m, 0.0, 1.0);
+  #endif
+  o = vec4(vec3(g), 1.0);
+}`;
+let probeProg = null;
+
 const FS_RAY = `#version 300 es
 #define MAXL 10   // 一度に描けるサーフェスの数
 precision highp float;
@@ -6239,7 +6259,12 @@ const TEST = (() => { let q = null; try { q = new URLSearchParams(location.searc
   // Quest・Android：sin を使わない乱数で描く（斜めの細い白い線が出るのを防ぐ）。?hash=1 / ?hash=0 で切り替えて比べられる
   const safe = hq === '1' ? true : hq === '0' ? false : /OculusBrowser|Quest|Android/i.test(navigator.userAgent || '');
   const noHQ = !!(q && q.get('hq') === '0');   // ?hq=0：仕上げの細かい絵を描かない（いつも操作中の絵のまま）
-  return { ray, vol8, safe, tiles, noHQ, on: ray !== null || vol8 || hq !== null || tq !== null || noHQ, t: {} }; })();
+  // ?noray=1：CTの3Dを描かない（背景だけ）。?probe=1：CTを1回だけ読む簡単な絵、?probe=2：奥行き方向に128回読む簡単な絵。?ov=0：3Dの上の重ね書きをしない
+  const noRay = !!(q && q.get('noray') === '1'), probe = q && /^[12]$/.test(q.get('probe') || '') ? +q.get('probe') : 0, noOv = !!(q && q.get('ov') === '0');
+  // ?solo=1：CTの3Dだけ描いて、ほかの付随処理（2D断面・CPR・3Dの上の重ね書き・ショットの小さな絵・自動保存）を止める。?blur=0：後ろをぼかす効果を外す
+  const solo = !!(q && q.get('solo') === '1'), noBlur = !!(q && q.get('blur') === '0');
+  return { ray, vol8, safe, tiles, noHQ, noRay, probe, noOv: noOv || solo, solo, noBlur, on: ray !== null || vol8 || hq !== null || tq !== null || noHQ || noRay || !!probe || noOv || solo || noBlur, t: {} }; })();
+if (TEST.noBlur || TEST.solo) { try { const st = document.createElement('style'); st.textContent = (TEST.noBlur ? '* { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }' : '') + (TEST.solo ? '.pane:not(#pane3d) canvas { visibility: hidden !important; }' : ''); (document.head || document.documentElement).appendChild(st); } catch (_) { /* */ } }
 let rayLevel = TEST.ray || 0, rayChecks = 8;
 const raySrc = (lv) => FS_RAY.replace('#define MAXL 10', (TEST.safe ? '#define SAFE_HASH\n' : '') + (TEST.vol8 ? '#define VOL8\n' : '') + RAY_LEVELS[lv] + '#define MAXL 10');
 
@@ -7119,7 +7144,7 @@ function testBadge() {
   let el = document.getElementById('testBadge');
   if (!el) { el = document.createElement('div'); el.id = 'testBadge'; el.className = 'perf-meter'; el.style.top = 'auto'; el.style.bottom = '8px'; document.body.appendChild(el); }
   const s = (ms) => (ms == null ? '—' : (ms / 1000).toFixed(1) + 's');
-  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} tile=${TEST.tiles}${TEST.noHQ ? ' hq=0' : ''} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
+  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} tile=${TEST.tiles}${TEST.noHQ ? ' hq=0' : ''}${TEST.noRay ? ' noray' : ''}${TEST.probe ? ' probe=' + TEST.probe : ''}${TEST.solo ? ' solo' : TEST.noOv ? ' ov=0' : ''}${TEST.noBlur ? ' blur=0' : ''} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
 }
 setTimeout(testBadge, 500);
 async function setSmooth(level) {
@@ -8360,7 +8385,13 @@ function draw(hq, ov) {
   gl.uniform3f(P.u('uCapWL'), view.wl - view.ww / 2, view.ww, view.capCTA ?? 1);
   gl.uniformMatrix3fv(P.u('uT2W'), false, volume.t2w);
   if (rayChecks > 0) for (let k = 0; k < 8 && gl.getError() !== gl.NO_ERROR; k++) { /* 前の誤りを捨てる */ }
-  if (TEST.tiles > 1) {
+  if (TEST.noRay || TEST.probe) {
+    if (TEST.probe) {
+      if (!probeProg) probeProg = program(VS, volume.tex && volume.tex._r8 ? FS_PROBE.replace('uniform int uN;', '#define VOL8\nuniform int uN;') : FS_PROBE);
+      gl.useProgram(probeProg); gl.uniform1i(probeProg.u('uVol'), 0); gl.uniform1i(probeProg.u('uN'), TEST.probe === 2 ? 128 : 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 3); gl.useProgram(P);
+    } else { gl.clearColor(view.bgBot[0], view.bgBot[1], view.bgBot[2], 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+  } else if (TEST.tiles > 1) {
     // Quest：画面を横長の帯に分けて、1本ずつ描いては GPU に出す（1回の命令が長いと、ヘッドセット本体の表示が待たされて、視界全体に斜めの乱れが出る）
     const n = TEST.tiles, bh = Math.ceil(tgt.h / n);
     gl.enable(gl.SCISSOR_TEST);
@@ -8429,7 +8460,7 @@ function draw(hq, ov) {
   q.textContent = hq ? '高画質' : 'プレビュー（操作中）';
   q.classList.toggle('low', !hq);
   drawOverlay3D();
-  if (typeof drawShotPreview === 'function') drawShotPreview();
+  if (typeof drawShotPreview === 'function' && !TEST.solo) drawShotPreview();
 }
 
 function requestDraw(interactive) {
@@ -8539,6 +8570,7 @@ function loop(now) {
       if (++PERF.bandI >= PERF.bands) { PERF.bandI = null; needHQ = false; }
     } else { draw(true); needHQ = false; }
   }
+  if (TEST.solo) dirty2d = false;
   if (dirty2d && !hold2d) { dirty2d = false; PERF.last2d = now; const t2 = PERF.meter ? performance.now() : 0; queueMicrotask(() => { if (PERF.meter) PERF.m2 = PERF.m2 * 0.8 + (performance.now() - t2) * 0.2; }); panes2d.forEach((q) => renderPane(q)); if (typeof cprLater === 'function' && !cprWin.hidden) cprLater(); }
   requestAnimationFrame(loop);
 }
@@ -14204,7 +14236,7 @@ $('annotAdd').addEventListener('click', () => setAnnotMode(!annot.on));
 $('annotFade').addEventListener('change', () => drawOverlay3D());
 
 function drawOverlay3D() {
-  if (!volume || $('pane3d').hidden) return;
+  if (!volume || $('pane3d').hidden || TEST.noOv) return;
   const dpr = dprCap();
   const W = Math.round(ov3d.clientWidth * dpr), H = Math.round(ov3d.clientHeight * dpr);
   if (!W || !H) return;
@@ -27473,19 +27505,27 @@ function tweenCam(to, ms = 750) {
 function sceneThumb() {
   if (!volume) return '';
   const W = 240, H = 150;
-  const saved = { w: canvas.width, h: canvas.height };
-  canvas.width = W; canvas.height = H;
-  const tgt = makeTarget(W, H);
+  if (TEST.solo) return '';
+  // 画面（canvas）の大きさは変えずに、別の描き先に描いて読み出す（大きさを変えると画面の作り直しが2回起き、Quest で画面全体がちらつく）
+  const tgt = makeTarget(W, H), dst = makeTarget(W, H);
   let url = '';
   try {
-    draw(true, { tgt });
+    draw(true, { tgt, outFb: dst.fb, outVp: [0, 0, W, H] });
+    gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+    const px = new Uint8Array(W * H * 4);
+    gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     const out = document.createElement('canvas');
     out.width = W; out.height = H;
-    out.getContext('2d').drawImage(canvas, 0, 0);
+    const g = out.getContext('2d'), im = g.createImageData(W, H);
+    for (let y = 0; y < H; y++) im.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);   // 上下を戻す
+    for (let i = 3; i < im.data.length; i += 4) im.data[i] = 255;
+    g.putImageData(im, 0, 0);
     url = out.toDataURL('image/jpeg', 0.82);
   } finally {
-    freeTarget(tgt);
-    canvas.width = saved.w; canvas.height = saved.h;
+    freeTarget(tgt); freeTarget(dst);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
     requestDraw(false);
   }
   return url;
@@ -30630,6 +30670,7 @@ function autosaveSig() {
   try { return [volume ? volume.id : 0, volume && !volume.empty ? 1 : 0, hist.undo.length, hist.base ? hist.base.length : 0, scenes.list.length, seg.list.length, models.length, meas.list.length, annot.list.length, layers.length].join(','); } catch (e) { return ''; }
 }
 async function autosaveNow(force) {
+  if (TEST.solo) return false;
   if (autosave.busy || !busy.hidden || (typeof anim !== 'undefined' && anim.playing) || (typeof cap !== 'undefined' && cap.busy)) return false;
   const has = (volume && !volume.empty) || models.length;
   if (!has) return false;
