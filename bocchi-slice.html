@@ -6263,10 +6263,13 @@ const TEST = (() => { let q = null; try { q = new URLSearchParams(location.searc
   const noRay = !!(q && q.get('noray') === '1'), probe = q && /^[12]$/.test(q.get('probe') || '') ? +q.get('probe') : 0, noOv = !!(q && q.get('ov') === '0');
   // ?solo=1：CTの3Dだけ描いて、ほかの付随処理（2D断面・CPR・3Dの上の重ね書き・ショットの小さな絵・自動保存）を止める。?blur=0：後ろをぼかす効果を外す
   const solo = !!(q && q.get('solo') === '1'), noBlur = !!(q && q.get('blur') === '0');
-  return { ray, vol8, safe, tiles, noHQ, noRay, probe, noOv: noOv || solo, solo, noBlur, on: ray !== null || vol8 || hq !== null || tq !== null || noHQ || noRay || !!probe || noOv || solo || noBlur, t: {} }; })();
+  // ?cap=64 など：1つの画素で光線を進める回数に上限を付け、影・遮蔽も止める（1画素の処理の長さがちらつきの原因かを確かめる）
+  const cap = q && /^\d{1,4}$/.test(q.get('cap') || '') ? Math.max(8, Math.min(9000, +q.get('cap'))) : 0;
+  return { ray, vol8, safe, tiles, noHQ, noRay, probe, noOv: noOv || solo, solo, noBlur, cap, on: ray !== null || vol8 || hq !== null || tq !== null || noHQ || noRay || !!probe || noOv || solo || noBlur || !!cap, t: {} }; })();
 if (TEST.noBlur || TEST.solo) { try { const st = document.createElement('style'); st.textContent = (TEST.noBlur ? '* { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }' : '') + (TEST.solo ? '.pane:not(#pane3d) canvas { visibility: hidden !important; }' : ''); (document.head || document.documentElement).appendChild(st); } catch (_) { /* */ } }
 let rayLevel = TEST.ray || 0, rayChecks = 8;
-const raySrc = (lv) => FS_RAY.replace('#define MAXL 10', (TEST.safe ? '#define SAFE_HASH\n' : '') + (TEST.vol8 ? '#define VOL8\n' : '') + RAY_LEVELS[lv] + '#define MAXL 10');
+const raySrc = (lv) => { const s = FS_RAY.replace('#define MAXL 10', (TEST.safe ? '#define SAFE_HASH\n' : '') + (TEST.vol8 ? '#define VOL8\n' : '') + (TEST.cap && !RAY_LEVELS[lv].includes('RAY_LITE') ? '#define RAY_LITE\n' : '') + RAY_LEVELS[lv] + '#define MAXL 10');
+  return TEST.cap ? s.replace('it < 9000;', `it < ${TEST.cap};`).replace('it < 6000;', `it < ${TEST.cap};`) : s; };
 
 function rayFallback() {
   if (rayLevel >= RAY_LEVELS.length - 1) {
@@ -7144,7 +7147,7 @@ function testBadge() {
   let el = document.getElementById('testBadge');
   if (!el) { el = document.createElement('div'); el.id = 'testBadge'; el.className = 'perf-meter'; el.style.top = 'auto'; el.style.bottom = '8px'; document.body.appendChild(el); }
   const s = (ms) => (ms == null ? '—' : (ms / 1000).toFixed(1) + 's');
-  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} tile=${TEST.tiles}${TEST.noHQ ? ' hq=0' : ''}${TEST.noRay ? ' noray' : ''}${TEST.probe ? ' probe=' + TEST.probe : ''}${TEST.solo ? ' solo' : TEST.noOv ? ' ov=0' : ''}${TEST.noBlur ? ' blur=0' : ''} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
+  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} tile=${TEST.tiles}${TEST.noHQ ? ' hq=0' : ''}${TEST.noRay ? ' noray' : ''}${TEST.probe ? ' probe=' + TEST.probe : ''}${TEST.solo ? ' solo' : TEST.noOv ? ' ov=0' : ''}${TEST.noBlur ? ' blur=0' : ''}${TEST.cap ? ' cap=' + TEST.cap : ''} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
 }
 setTimeout(testBadge, 500);
 async function setSmooth(level) {
