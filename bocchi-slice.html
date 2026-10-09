@@ -6238,7 +6238,8 @@ const TEST = (() => { let q = null; try { q = new URLSearchParams(location.searc
   const tiles = tq !== null ? tq : /OculusBrowser|Quest/i.test(navigator.userAgent || '') ? 8 : 0;
   // Quest・Android：sin を使わない乱数で描く（斜めの細い白い線が出るのを防ぐ）。?hash=1 / ?hash=0 で切り替えて比べられる
   const safe = hq === '1' ? true : hq === '0' ? false : /OculusBrowser|Quest|Android/i.test(navigator.userAgent || '');
-  return { ray, vol8, safe, tiles, on: ray !== null || vol8 || hq !== null || tq !== null, t: {} }; })();
+  const noHQ = !!(q && q.get('hq') === '0');   // ?hq=0：仕上げの細かい絵を描かない（いつも操作中の絵のまま）
+  return { ray, vol8, safe, tiles, noHQ, on: ray !== null || vol8 || hq !== null || tq !== null || noHQ, t: {} }; })();
 let rayLevel = TEST.ray || 0, rayChecks = 8;
 const raySrc = (lv) => FS_RAY.replace('#define MAXL 10', (TEST.safe ? '#define SAFE_HASH\n' : '') + (TEST.vol8 ? '#define VOL8\n' : '') + RAY_LEVELS[lv] + '#define MAXL 10');
 
@@ -7118,7 +7119,7 @@ function testBadge() {
   let el = document.getElementById('testBadge');
   if (!el) { el = document.createElement('div'); el.id = 'testBadge'; el.className = 'perf-meter'; el.style.top = 'auto'; el.style.bottom = '8px'; document.body.appendChild(el); }
   const s = (ms) => (ms == null ? '—' : (ms / 1000).toFixed(1) + 's');
-  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} tile=${TEST.tiles} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
+  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} tile=${TEST.tiles}${TEST.noHQ ? ' hq=0' : ''} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
 }
 setTimeout(testBadge, 500);
 async function setSmooth(level) {
@@ -8245,6 +8246,7 @@ function lightUniforms(P) {
 }
 function draw(hq, ov) {
   if (!volume) return;
+  if (TEST.noHQ && !ov) hq = false;
   if (!ov && (!hiT || $('pane3d').hidden || !canvas.clientWidth)) return;
   // CTの表面を描かない（3Dモデル・3DGSだけ）ときは、操作中も細かく描く
   const light = volume.empty || view.ctHide || (!activeLayers().length && !(typeof vr !== 'undefined' && vr.on));
