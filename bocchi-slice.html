@@ -6162,11 +6162,13 @@ void main(){
   if (flA > 0.0 && flT < tDepth) fragColor.rgb = mix(fragColor.rgb, flC, flA * 0.85);   // 手前（下から見上げたときなど）
   if (uGlowPass == 1) fragColor = vec4(acc.rgb, 1.0);
   // 3DGSの前後判定のため、見えている面の深度を書く（発光の下描きでは、3Dモデルの面は書かない）
+#ifndef NO_FDEPTH
   if (tDepth > 1e8 || (uGlowPass == 1 && tDepth == tMesh)) gl_FragDepth = 1.0;
   else {
     float z = max(tDepth * fz, uNear);
     gl_FragDepth = clamp(0.5 * (depthA() + depthB() / z) + 0.5, 0.0, 1.0);
   }
+#endif
 }`;
 
 
@@ -6186,7 +6188,7 @@ function program(vs, fs) {
   p.u = (name) => (name in cache ? cache[name] : (cache[name] = gl.getUniformLocation(p, name)));
   return p;
 }
-let rayProg, blitProg;
+let rayProg, blitProg, rayProgND = null;   // rayProgND：深度を書かない版（軽く描くとき）
 // 3Dの描画プログラムは大きく、Windows（DirectX）では組み立てに十数秒かかることがある。
 // 使える環境では裏で組み立て（KHR_parallel_shader_compile）、できるまで「3Dを準備中」と出して画面を止めない
 const pscExt = gl.getExtension('KHR_parallel_shader_compile');
@@ -6221,7 +6223,7 @@ function rayFallback() {
     showMsg('この環境では3D表示ができませんでした（GPUの描画に失敗）。2D断面は使えます。ブラウザやグラフィックのドライバを更新すると直ることがあります。');
     return;
   }
-  rayLevel++;
+  rayLevel++; rayProgND = null;
   try { rayProg = programLazy(VS, raySrc(rayLevel)); } catch (e) { console.error(e); }
   rayChecks = 8;
   console.warn('3D: fallback to level', rayLevel);
@@ -7997,7 +7999,7 @@ function perfMeter(now, interactive) {
   if (!el) { el = document.createElement('div'); el.id = 'perfMeter'; el.className = 'perf-meter'; document.body.appendChild(el); }
   if ((PERF.mt || 0) + 250 > now) return; PERF.mt = now;
   const t = hiT && loT ? `${hiT.w}×${hiT.h} / ${loT.w}×${loT.h}` : '';
-  el.textContent = `${PERF.fr.length} fps · 3D ${PERF.m3.toFixed(1)} ms · 2D ${PERF.m2.toFixed(1)} ms · ${PERF.lite ? 'lite' : 'std'} · ${t}${interactive ? ' · 操作中' : ''}`;
+  el.textContent = `${PERF.fr.length} fps · 3D ${PERF.m3.toFixed(1)} ms · 2D ${PERF.m2.toFixed(1)} ms · ${PERF.lite ? 'lite' : 'std'}${PERF.nd ? ' · nodepth' : ''} · ${t}${interactive ? ' · 操作中' : ''}`;
 }
 function perfLoTarget() {
   const B = PERF.base; if (!B) return;
@@ -8239,7 +8241,15 @@ function draw(hq, ov) {
     setTimeout(() => requestDraw(false), 120);   // 描き終わりで dirty が消えるので、少し後に頼み直す
     return;
   }
-  const P = rayProg;
+  // 深度を使わないとき（3DGS・イラスト表示・発光がない）は、深度を書かない版で描く。
+  // gl_FragDepth を書くと、Quest などのスマホ向け GPU では深度の早期判定が切れ、毎コマ深度をメモリへ書き出すので重い
+  const noDepth = !ov && PERF.lite && !rayGlowAny && !(view.style > 0) && !(view.styleT >= 0 && view.styleT <= 1)
+    && !models.some((o) => o.visible);   // 3Dモデル（半透明・3DGS）は CT の深度で前後を決めるので、出ているときはふつうの版
+  if (noDepth && !rayProgND) { try { rayProgND = programLazy(VS, raySrc(rayLevel).replace('#define MAXL 10', '#define NO_FDEPTH\n#define MAXL 10')); } catch (e) { rayProgND = false; } }
+  let ndOk = false; if (noDepth && rayProgND) { try { ndOk = progReady(rayProgND); } catch (e) { console.warn(e); rayProgND = false; } }
+  const P = ndOk ? rayProgND : rayProg;
+  if (ndOk) { gl.disable(gl.DEPTH_TEST); gl.depthMask(false); }
+  PERF.nd = ndOk;
   gl.useProgram(P);
   gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, tgt.mt);
   gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, tgt.md);
@@ -8307,6 +8317,7 @@ function draw(hq, ov) {
   if (rayChecks > 0) for (let k = 0; k < 8 && gl.getError() !== gl.NO_ERROR; k++) { /* 前の誤りを捨てる */ }
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   if (rayChecks > 0) { rayChecks--; if (gl.getError() === gl.INVALID_OPERATION) { rayFallback(); } }
+  if (ndOk) { if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.DEPTH_ATTACHMENT]); gl.depthMask(true); }   // 深度は使わないので、メモリへ書き出さない
   drawSplats(tgt, camInfo);
   drawTranslucentMeshes(tgt, camInfo);
   drawOnTopMeshes(camInfo);
