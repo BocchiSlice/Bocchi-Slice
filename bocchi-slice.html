@@ -6234,9 +6234,11 @@ const RAY_LEVELS = ['', '#define RAY_LITE\n', '#define RAY_LITE\n#define RAY_NOV
 const TEST = (() => { let q = null; try { q = new URLSearchParams(location.search); } catch (_) { /* */ }
   const ray = q && /^[0-2]$/.test(q.get('ray') || '') ? +q.get('ray') : null, vol8 = !!(q && q.get('vol8') === '1');
   const hq = q ? q.get('hash') : null;
+  const tq = q && /^\d{1,2}$/.test(q.get('tile') || '') ? +q.get('tile') : null;
+  const tiles = tq !== null ? tq : /OculusBrowser|Quest/i.test(navigator.userAgent || '') ? 8 : 0;
   // Quest・Android：sin を使わない乱数で描く（斜めの細い白い線が出るのを防ぐ）。?hash=1 / ?hash=0 で切り替えて比べられる
   const safe = hq === '1' ? true : hq === '0' ? false : /OculusBrowser|Quest|Android/i.test(navigator.userAgent || '');
-  return { ray, vol8, safe, on: ray !== null || vol8 || hq !== null, t: {} }; })();
+  return { ray, vol8, safe, tiles, on: ray !== null || vol8 || hq !== null || tq !== null, t: {} }; })();
 let rayLevel = TEST.ray || 0, rayChecks = 8;
 const raySrc = (lv) => FS_RAY.replace('#define MAXL 10', (TEST.safe ? '#define SAFE_HASH\n' : '') + (TEST.vol8 ? '#define VOL8\n' : '') + RAY_LEVELS[lv] + '#define MAXL 10');
 
@@ -7116,7 +7118,7 @@ function testBadge() {
   let el = document.getElementById('testBadge');
   if (!el) { el = document.createElement('div'); el.id = 'testBadge'; el.className = 'perf-meter'; el.style.top = 'auto'; el.style.bottom = '8px'; document.body.appendChild(el); }
   const s = (ms) => (ms == null ? '—' : (ms / 1000).toFixed(1) + 's');
-  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
+  el.textContent = `TEST ray=${rayLevel}${TEST.vol8 ? ' vol8' : ''} hash=${TEST.safe ? 1 : 0} tile=${TEST.tiles} · outside ${s(TEST.t.om)} · upload ${s(TEST.t.up)}`;
 }
 setTimeout(testBadge, 500);
 async function setSmooth(level) {
@@ -8356,7 +8358,13 @@ function draw(hq, ov) {
   gl.uniform3f(P.u('uCapWL'), view.wl - view.ww / 2, view.ww, view.capCTA ?? 1);
   gl.uniformMatrix3fv(P.u('uT2W'), false, volume.t2w);
   if (rayChecks > 0) for (let k = 0; k < 8 && gl.getError() !== gl.NO_ERROR; k++) { /* 前の誤りを捨てる */ }
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  if (TEST.tiles > 1) {
+    // Quest：画面を横長の帯に分けて、1本ずつ描いては GPU に出す（1回の命令が長いと、ヘッドセット本体の表示が待たされて、視界全体に斜めの乱れが出る）
+    const n = TEST.tiles, bh = Math.ceil(tgt.h / n);
+    gl.enable(gl.SCISSOR_TEST);
+    for (let i = 0; i < n; i++) { gl.scissor(0, i * bh, tgt.w, bh); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.flush(); }
+    gl.disable(gl.SCISSOR_TEST);
+  } else gl.drawArrays(gl.TRIANGLES, 0, 3);
   if (rayChecks > 0) { rayChecks--; if (gl.getError() === gl.INVALID_OPERATION) { rayFallback(); } }
   if (ndOk) { if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.DEPTH_ATTACHMENT]); gl.depthMask(true); }   // 深度は使わないので、メモリへ書き出さない
   drawSplats(tgt, camInfo);
