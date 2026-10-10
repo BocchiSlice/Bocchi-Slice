@@ -8,6 +8,7 @@ Drop CT/MR data (DICOM, NIfTI), 3D models (GLB, OBJ, STL, PLY) or 3D Gaussian Sp
 - **No install, no server** — open `bocchi-slice.html` in a browser.
 - **Nothing leaves your machine** — all data is processed locally in the browser.
 - **Desktop and phone** — the same file works on both (latest Chrome, Edge, Safari or Firefox; WebGL2 required).
+- - **Meta Quest 3, too** — opens in the Meta Quest Browser, and the 3D view can be viewed in VR (beta).
 
 > For research and education only. Not for diagnosis or treatment decisions.
 
